@@ -77,8 +77,9 @@ class LoginActivity : AppCompatActivity() {
             Log.e("TAG", "printHashKey()", e)
         }
     }
+
     fun facebookLogin() {
-        LoginManager.getInstance().logInWithReadPermissions(this, Arrays.asList("public_profile", "email"))
+        LoginManager.getInstance().logInWithReadPermissions(this, listOf("public_profile", "email"))
         LoginManager.getInstance().registerCallback(callbackManager, object : FacebookCallback<LoginResult>{
             override fun onSuccess(result: LoginResult?) {
                 //Second step
