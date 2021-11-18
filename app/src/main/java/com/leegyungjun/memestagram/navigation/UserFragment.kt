@@ -1,5 +1,6 @@
 package com.leegyungjun.memestagram.navigation
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -14,8 +15,12 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.leegyungjun.memestagram.LoginActivity
+import com.leegyungjun.memestagram.MainActivity
 import com.leegyungjun.memestagram.R
 import com.leegyungjun.memestagram.navigation.model.ContentDTO
+import com.leegyungjun.memestagram.navigation.model.FollowDTO
+import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.fragment_user.view.*
 
 class UserFragment : Fragment() {
@@ -23,16 +28,113 @@ class UserFragment : Fragment() {
     var firestore : FirebaseFirestore? = null
     var uid : String? = null
     var auth : FirebaseAuth? = null
-
+    var currentUserUid : String? = null
+    companion object {
+        var PICK_PROFILE_FROM_ALBUM = 10
+    }
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         fragmentView = LayoutInflater.from(activity).inflate(R.layout.fragment_user,container,false)
         uid = arguments?.getString("destinationUid")
         firestore = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
+        currentUserUid  = auth?.currentUser?.uid
+
+        if (uid == currentUserUid) {
+            //MyPage
+            fragmentView?.account_btn_follow_signout?.text = getString(R.string.signout)
+            fragmentView?.account_btn_follow_signout?.setOnClickListener {
+                activity?.finish()
+                startActivity(Intent(activity, LoginActivity::class.java))
+                auth?.signOut()
+            }
+        }else{
+            //OtherUserPage
+            fragmentView?.account_btn_follow_signout?.text = getString(R.string.follow)
+            var mainActivity = (activity as MainActivity)
+            mainActivity?.toolbar_username?.text = arguments?.getString("userId")
+            mainActivity?.toolbar_btn_back?.setOnClickListener {
+                mainActivity.bottom_navigation.selectedItemId = R.id.action_home
+            }
+            mainActivity?.toolbar_title_image?.visibility = View.GONE
+            mainActivity?.toolbar_username?.visibility = View.VISIBLE
+            mainActivity?.toolbar_btn_back?.visibility = View.VISIBLE
+            fragmentView?.account_btn_follow_signout?.setOnClickListener {
+                requestFollow()
+            }
+
+        }
 
         fragmentView?.account_recyclerview?.adapter = UserFragmentRecyclerViewAdapter()
         fragmentView?.account_recyclerview?.layoutManager = GridLayoutManager(activity!!, 3)
+
+        fragmentView?.account_iv_profile?.setOnClickListener {
+            var photoPickerIntent = Intent(Intent.ACTION_PICK)
+            photoPickerIntent.type = "image/*"
+            activity?.startActivityForResult(photoPickerIntent,PICK_PROFILE_FROM_ALBUM)
+        }
+        getProfileImages()
         return fragmentView
+    }
+
+    fun requestFollow() {
+        //Save data to my account
+        var tsDocFollowing = firestore?.collection("users")?.document(currentUserUid!!)
+        firestore?.runTransaction { transaction->
+            var followDTO = transaction.get(tsDocFollowing!!).toObject(FollowDTO::class.java)
+            if (followDTO == null) {
+                followDTO = FollowDTO()
+                followDTO!!.followingCount = 1
+                followDTO!!.followers[uid!!] = true
+
+                transaction.set(tsDocFollowing,followDTO)
+                return@runTransaction
+            }
+            if (followDTO.followings.containsKey(uid)) {
+                //It remove following third person when a third person follow me
+                followDTO?.followingCount = followDTO?.followingCount - 1
+                followDTO?.followers?.remove(uid)
+            }else {
+                //It add following third person when a third person do not follow me
+                followDTO?.followingCount = followDTO?.followingCount + 1
+                followDTO?.followers[uid!!] = true
+            }
+            transaction.set(tsDocFollowing,followDTO)
+            return@runTransaction
+        }
+        //Save data to third person
+        var tsDocFollower = firestore?.collection("users")?.document(uid!!)
+        firestore?.runTransaction { transaction->
+            var followDTO = transaction.get(tsDocFollower!!).toObject(FollowDTO::class.java)
+            if (followDTO == null) {
+                followDTO = FollowDTO()
+                followDTO!!.followerCount = 1
+                followDTO!!.followers[currentUserUid!!] = true
+
+                transaction.set(tsDocFollower,followDTO!!)
+                return@runTransaction
+            }
+
+            if (followDTO!!.followers.containsKey(currentUserUid)) {
+                //It cancel my followers when I follow a third person
+                followDTO!!.followerCount = followDTO!!.followerCount - 1
+                followDTO!!.followers.remove(currentUserUid!!)
+            }else {
+                //It add my followers when I follow a third person
+                followDTO!!.followerCount = followDTO!!.followerCount + 1
+                followDTO!!.followers[currentUserUid!!] = true
+            }
+            transaction.set(tsDocFollower,followDTO!!)
+            returnTransition
+        }
+    }
+    fun getProfileImages() {
+        firestore?.collection("profileImages")?.document(uid!!)?.addSnapshotListener { value, error ->
+            if (value == null) return@addSnapshotListener
+            if (value.data != null) {
+                var url = value?.data!!["image"]
+                Glide.with(activity!!).load(url).apply(RequestOptions().circleCrop()).into(fragmentView?.account_iv_profile!!)
+            }
+        }
     }
 
     inner class UserFragmentRecyclerViewAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
