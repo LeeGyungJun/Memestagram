@@ -20,6 +20,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.leegyungjun.memestagram.LoginActivity
 import com.leegyungjun.memestagram.MainActivity
 import com.leegyungjun.memestagram.R
+import com.leegyungjun.memestagram.navigation.model.AlarmDTO
 import com.leegyungjun.memestagram.navigation.model.ContentDTO
 import com.leegyungjun.memestagram.navigation.model.FollowDTO
 import kotlinx.android.synthetic.main.activity_main.*
@@ -134,7 +135,7 @@ class UserFragment : Fragment() {
                 followDTO = FollowDTO()
                 followDTO!!.followerCount = 1
                 followDTO!!.followers[currentUserUid!!] = true
-
+                followAlarm(uid!!)
                 transaction.set(tsDocFollower,followDTO!!)
                 return@runTransaction
             }
@@ -147,6 +148,7 @@ class UserFragment : Fragment() {
                 //It add my followers when I follow a third person
                 followDTO!!.followerCount = followDTO!!.followerCount + 1
                 followDTO!!.followers[currentUserUid!!] = true
+                followAlarm(uid!!)
             }
             transaction.set(tsDocFollower,followDTO!!)
             returnTransition
@@ -160,6 +162,15 @@ class UserFragment : Fragment() {
                 Glide.with(activity!!).load(url).apply(RequestOptions().circleCrop()).into(fragmentView?.account_iv_profile!!)
             }
         }
+    }
+    fun followAlarm(destinationUid : String) {
+        var alarmDTO = AlarmDTO()
+        alarmDTO.destinationUid = destinationUid
+        alarmDTO.userId = FirebaseAuth.getInstance().currentUser?.email
+        alarmDTO.uid = FirebaseAuth.getInstance().currentUser?.uid
+        alarmDTO.kind = 2
+        alarmDTO.timestamp = System.currentTimeMillis()
+        FirebaseFirestore.getInstance().collection("alarms").document().set(alarmDTO)
     }
 
     inner class UserFragmentRecyclerViewAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
@@ -180,7 +191,7 @@ class UserFragment : Fragment() {
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
             var width = resources.displayMetrics.widthPixels / 3
-            
+
             var imageview = ImageView(parent.context)
             imageview.layoutParams = LinearLayoutCompat.LayoutParams(width, width)
             return CustomViewHolder(imageview)
