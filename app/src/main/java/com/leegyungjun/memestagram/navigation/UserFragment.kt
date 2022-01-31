@@ -23,6 +23,7 @@ import com.leegyungjun.memestagram.R
 import com.leegyungjun.memestagram.navigation.model.AlarmDTO
 import com.leegyungjun.memestagram.navigation.model.ContentDTO
 import com.leegyungjun.memestagram.navigation.model.FollowDTO
+import com.leegyungjun.memestagram.navigation.util.FcmPush
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.fragment_user.view.*
 
@@ -171,6 +172,9 @@ class UserFragment : Fragment() {
         alarmDTO.kind = 2
         alarmDTO.timestamp = System.currentTimeMillis()
         FirebaseFirestore.getInstance().collection("alarms").document().set(alarmDTO)
+
+        var message = auth?.currentUser?.email + getString(R.string.alarm_follow)
+        FcmPush.instance.sendMessage(destinationUid, "Memestagram",message)
     }
 
     inner class UserFragmentRecyclerViewAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
